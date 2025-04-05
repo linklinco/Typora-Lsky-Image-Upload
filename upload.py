@@ -4,6 +4,7 @@ time:2025-04-05
 version:0.1
 """
 
+
 import sys
 import requests
 import json
@@ -11,6 +12,7 @@ import re
 import uuid
 import os
 from urllib.parse import urlparse
+import time
 
 """
 使用前，请先配置好这三个全局变量
@@ -19,7 +21,6 @@ url 为部署兰空图床的域名
 email 为兰空图床的邮箱
 password 为兰空图床设置的密码
 """
-
 
 url = ""
 email = ""
@@ -61,10 +62,13 @@ def get_file_extension(url):
     response = requests.get(url, stream=True)
 
     # 方法1：Content-Disposition
-    if "Content-Disposition" in response.headers:
-        _, params = response.headers["Content-Disposition"].split(";")
-        filename = params.replace("filename=", "").strip('"')
-        return os.path.splitext(filename)[1]
+    try:
+        if "Content-Disposition" in response.headers:
+            _, params = response.headers["Content-Disposition"].split(";")
+            filename = params.replace("filename=", "").strip('"')
+            return os.path.splitext(filename)[1]
+    except:
+        pass
 
     # 方法2：URL路径
     path = urlparse(url).path
@@ -117,11 +121,42 @@ def upload(filePath: str):
     return data["data"]["links"]["url"]
 
 
+def readToken():
+    data = {}
+    with open("token.json", "a+", encoding="utf8") as f:
+        f.seek(0)
+        try:
+            data = json.load(f)
+        except:
+            pass
+
+        if data.get("time"):
+            get_token_time = time.strptime(data['time'], "%Y-%m-%d")
+            if time.time() - time.mktime(get_token_time) < 60*60*24:
+                return data['token']
+            else:
+                token = getToken()
+                now_time = time.strftime("%Y-%m-%d", time.localtime())
+                f.truncate(0)
+                f.write(json.dumps({
+                    "token": token,
+                    "time": now_time
+                }))
+                return token
+        else:
+            token = getToken()
+            now_time = time.strftime("%Y-%m-%d", time.localtime())
+            f.write(json.dumps({
+                "token": token,
+                "time": now_time
+            }))
+            return token
+
+
 if __name__ == "__main__":
     # 第一个参数是脚本名，后续为传入的参数
-
     global token
-    token = getToken()
+    token = readToken()
     if len(sys.argv) < 2:
         print("error:need two argvs")
         sys.exit(1)
